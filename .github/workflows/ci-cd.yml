@@ -1,0 +1,66 @@
+name: CI/CD: Harbor → ArgoCD → EKS
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  IMAGE_NAME: sample-app
+  REGISTRY: ${{ secrets.HARBOR_REGISTRY }}
+  PROJECT: ${{ secrets.HARBOR_PROJECT }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set short git SHA
+        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Login to Harbor
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login $REGISTRY -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+
+      - name: Build image
+        run: docker build -t $REGISTRY/$PROJECT/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }} .
+
+      - name: Push image
+        run: docker push $REGISTRY/$PROJECT/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }}
+
+      - name: Update Kubernetes deployment manifest
+        run: |
+          sed -i "s|{{GIT_SHA}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
+
+      - name: Commit manifest update
+        run: |
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          git add k8s/deployment.yaml
+          git commit -m "Update image to ${GIT_SHA}"
+          git push
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Force ArgoCD sync
+        run: |
+          kubectl patch application sample-app -n argocd \
+            --type merge -p '{"metadata":{"annotations":{"lastSyncTime":"'$(date +%s)'"}}}'
