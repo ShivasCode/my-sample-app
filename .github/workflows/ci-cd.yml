@@ -1,4 +1,4 @@
-name: CI/CD: Harbor → ArgoCD → EKS
+name: Harbor Argo
 
 on:
   push:
