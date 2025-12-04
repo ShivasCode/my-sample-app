@@ -4,46 +4,54 @@ on:
   push:
     branches: ["main"]
 
+env:
+  HARBOR_REGISTRY: test.harbor.legiontech.dev
+  HARBOR_PROJECT: myproject
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: sample-app
+    permissions:
+      contents: write # ← ADD THIS!
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }} # Use Personal Access Token
+          token: ${{ secrets.PAT_TOKEN }} # Personal Access Token
           persist-credentials: true
+
       - name: Short SHA
         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Login to Harbor
         run: |
           echo "${{ secrets.HARBOR_PASSWORD }}" | \
-            docker login ${{ vars.HARBOR_REGISTRY }} \
+            docker login $HARBOR_REGISTRY \
             -u "${{ secrets.HARBOR_USERNAME }}" \
             --password-stdin
 
       - name: Build image
         run: |
-          docker build -t ${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }} .
+          docker build -t $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA .
 
       - name: Push image
         run: |
-          docker push ${{ vars.HARBOR_REGISTRY }}/${{ vars.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }}
+          docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA
 
       - name: Update Kubernetes manifest
         run: |
-          sed -i "s|{{GIT_SHA}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
+          sed -i "s|{{GIT_SHA}}|$GIT_SHA|g" k8s/deployment.yaml
 
       - name: Commit manifest update
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Update image to ${{ env.GIT_SHA }}"
+          commit_message: "Update image to $GIT_SHA"
           file_pattern: k8s/deployment.yaml
           commit_user_name: "github-actions[bot]"
           commit_user_email: "github-actions[bot]@users.noreply.github.com"
-          token: ${{ secrets.PAT_TOKEN }} # This is auto-generated
+          # REMOVE THE TOKEN LINE COMPLETELY!
 
   deploy:
     needs: build-and-push
