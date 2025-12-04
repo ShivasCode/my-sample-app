@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_USERNAME/my-sample-app.git
+    repoURL: https://github.com/ShivasCode/my-sample-app.git
     targetRevision: main
     path: k8s
   destination:
