@@ -1,4 +1,4 @@
-name: test
+name: "CI-CD Harbor ArgoCD EKS"
 
 on:
   push:
@@ -6,40 +6,38 @@ on:
 
 env:
   IMAGE_NAME: sample-app
-  REGISTRY: ${{ secrets.HARBOR_REGISTRY }}
-  PROJECT: ${{ secrets.HARBOR_PROJECT }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set short git SHA
         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Login to Harbor
+      - name: Docker login to Harbor
+        run: echo "${{ secrets.HARBOR_PASSWORD }}" | docker login ${{ secrets.HARBOR_REGISTRY }} -u ${{ secrets.HARBOR_USERNAME }} --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }}
+
+      - name: Update deployment manifest
         run: |
-          echo "${{ secrets.HARBOR_PASSWORD }}" | docker login $REGISTRY -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+          sed -i "s|IMAGE_TAG|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
 
-      - name: Build image
-        run: docker build -t $REGISTRY/$PROJECT/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }} .
-
-      - name: Push image
-        run: docker push $REGISTRY/$PROJECT/${{ env.IMAGE_NAME }}:${{ env.GIT_SHA }}
-
-      - name: Update Kubernetes deployment manifest
+      - name: Commit updated manifest
         run: |
-          sed -i "s|{{GIT_SHA}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
+          git config --global user.email "ci@github.com"
+          git config --global user.name "GitHub Actions"
 
-      - name: Commit manifest update
-        run: |
-          git config user.email "ci@github.com"
-          git config user.name "GitHub Actions"
           git add k8s/deployment.yaml
-          git commit -m "Update image to ${GIT_SHA}"
+          git commit -m "Update image tag to ${{ env.GIT_SHA }}" || echo "No changes to commit"
           git push
 
   deploy:
@@ -47,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Configure kubectl
@@ -55,12 +53,12 @@ jobs:
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           export KUBECONFIG=./kubeconfig
 
-      - name: Apply manifests
+      - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      - name: Force ArgoCD sync
+      - name: Trigger ArgoCD refresh
         run: |
           kubectl patch application sample-app -n argocd \
-            --type merge -p '{"metadata":{"annotations":{"lastSyncTime":"'$(date +%s)'"}}}'
+            --type merge -p "{\"metadata\":{\"annotations\":{\"lastSyncTime\":\"$(date +%s)\"}}}"
