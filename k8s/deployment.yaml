@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: sample-app
-          image: test.harbor.legiontech.dev/myproject/sample-app:{{GIT_SHA}}
+          image: test.harbor.legiontech.dev/myproject/sample-app:eeb6ab3
           ports:
             - containerPort: 3000
       imagePullSecrets:
