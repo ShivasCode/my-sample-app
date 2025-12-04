@@ -13,14 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: sample-app
     permissions:
-      contents: write # ← ADD THIS!
+      contents: write # Needed for pushing commits
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }} # Personal Access Token
           persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }} # Use GitHub Actions token
 
       - name: Short SHA
         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -51,7 +51,6 @@ jobs:
           file_pattern: k8s/deployment.yaml
           commit_user_name: "github-actions[bot]"
           commit_user_email: "github-actions[bot]@users.noreply.github.com"
-          # REMOVE THE TOKEN LINE COMPLETELY!
 
   deploy:
     needs: build-and-push
