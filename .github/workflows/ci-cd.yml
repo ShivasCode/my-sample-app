@@ -39,6 +39,9 @@ jobs:
         with:
           commit_message: "Update image to ${{ env.GIT_SHA }}"
           file_pattern: k8s/deployment.yaml
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+          token: ${{ secrets.GITHUB_TOKEN }} # This is auto-generated
 
   deploy:
     needs: build-and-push
