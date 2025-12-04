@@ -1,4 +1,4 @@
-name: Harbor
+name: CI/CD: Harbor → ArgoCD → EKS
 
 on:
   push:
@@ -7,12 +7,19 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: sample-app
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Short SHA
+      - name: Debug secrets
+        run: |
+          echo "REGISTRY=${{ secrets.HARBOR_REGISTRY }}"
+          echo "PROJECT=${{ secrets.HARBOR_PROJECT }}"
+          echo "USERNAME=${{ secrets.HARBOR_USERNAME }}"
+        # (Password hidden)
+
+      - name: Set short Git SHA
         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Login to Harbor
@@ -24,31 +31,35 @@ jobs:
 
       - name: Build image
         run: |
-          docker build -t ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }} .
+          docker build \
+            -t ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }} .
 
       - name: Push image
         run: |
-          docker push ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }}
+          docker push \
+            ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }}
 
-      - name: Update Kubernetes manifest
+      - name: Update deployment manifest
         run: |
-          sed -i "s|{{GIT_SHA}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
+          sed -i "s|{{IMAGE_TAG}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
 
       - name: Commit manifest update
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update image to ${{ env.GIT_SHA }}"
-          file_pattern: k8s/deployment.yaml
+        run: |
+          git config user.email "ci@github.com"
+          git config user.name "GitHub Actions"
+          git add k8s/deployment.yaml
+          git commit -m "Update deployment image to ${{ env.GIT_SHA }}" || echo "No changes to commit"
+          git push || echo "No changes to push"
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure kubeconfig
+      - name: Configure kubectl
         run: |
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
           export KUBECONFIG=./kubeconfig
@@ -58,7 +69,8 @@ jobs:
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      - name: Trigger ArgoCD sync
+      - name: Force ArgoCD sync
         run: |
           kubectl patch application sample-app -n argocd \
-           --type merge -p '{"metadata":{"annotations":{"syncTimestamp":"'$(date +%s)'"}}}'
+            --type merge \
+            -p '{"metadata":{"annotations":{"lastSyncTime":"'$(date +%s)'"}}}'
