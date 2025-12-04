@@ -1,8 +1,8 @@
-name: CI/CD: Harbor → ArgoCD → EKS
+name: test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 env:
   IMAGE_NAME: sample-app
