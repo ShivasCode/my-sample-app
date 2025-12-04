@@ -4,22 +4,16 @@ on:
   push:
     branches: ["main"]
 
-env:
-  IMAGE_NAME: sample-app
-  HARBOR_REGISTRY: ${{ secrets.HARBOR_REGISTRY }}
-  HARBOR_PROJECT: ${{ secrets.HARBOR_PROJECT }}
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     environment: sample-app
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Short SHA
+        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Login to Harbor
         run: |
@@ -28,35 +22,22 @@ jobs:
             -u "${{ secrets.HARBOR_USERNAME }}" \
             --password-stdin
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix={{branch}}-,format=short
+      - name: Build image
+        run: |
+          docker build -t ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }} .
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Get short SHA
-        id: sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Push image
+        run: |
+          docker push ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/sample-app:${{ env.GIT_SHA }}
 
       - name: Update Kubernetes manifest
         run: |
-          sed -i "s|{{GIT_SHA}}|${{ steps.sha.outputs.sha_short }}|g" k8s/deployment.yaml
+          sed -i "s|{{GIT_SHA}}|${{ env.GIT_SHA }}|g" k8s/deployment.yaml
 
       - name: Commit manifest update
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Update image to ${{ steps.sha.outputs.sha_short }}"
+          commit_message: "Update image to ${{ env.GIT_SHA }}"
           file_pattern: k8s/deployment.yaml
 
   deploy:
@@ -69,12 +50,8 @@ jobs:
 
       - name: Configure kubeconfig
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      - name: Verify cluster access
-        run: kubectl cluster-info
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig
+          export KUBECONFIG=./kubeconfig
 
       - name: Apply manifests
         run: |
@@ -84,8 +61,4 @@ jobs:
       - name: Trigger ArgoCD sync
         run: |
           kubectl patch application sample-app -n argocd \
-            --type merge -p '{"metadata":{"annotations":{"syncTimestamp":"'$(date +%s)'"}}}'
-
-      - name: Cleanup kubeconfig
-        if: always()
-        run: rm -f ~/.kube/config
+           --type merge -p '{"metadata":{"annotations":{"syncTimestamp":"'$(date +%s)'"}}}'
