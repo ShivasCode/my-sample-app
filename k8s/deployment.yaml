@@ -16,8 +16,22 @@ spec:
     spec:
       containers:
         - name: sample-app
-          image: test.harbor.legiontech.dev/myproject/sample-app:eeb6ab3
+          # CI replaces {{GIT_SHA}} with the real git commit hash on every push
+          # e.g. docker.legiontechinc.com/myproject/sample-app:a1b2c3d
+          image: docker.legiontechinc.com/sample-app/sample-app:{{GIT_SHA}}
           ports:
             - containerPort: 3000
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+      # This secret lets EKS pull images from your private Harbor registry
+      # Create it once: kubectl create secret docker-registry harbor-secret \
+      #   --docker-server=docker.legiontechinc.com \
+      #   --docker-username=YOUR_USER \
+      #   --docker-password=YOUR_PASSWORD
       imagePullSecrets:
         - name: harbor-secret
