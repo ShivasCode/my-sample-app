@@ -16,9 +16,9 @@ spec:
     spec:
       containers:
         - name: sample-app
-          # CI replaces {{GIT_SHA}} with the real git commit hash on every push
+          # CI replaces c45987c with the real git commit hash on every push
           # e.g. docker.legiontechinc.com/myproject/sample-app:a1b2c3d
-          image: docker.legiontechinc.com/sample-app/sample-app:{{GIT_SHA}}
+          image: docker.legiontechinc.com/sample-app/sample-app:c45987c
           ports:
             - containerPort: 3000
           resources:
