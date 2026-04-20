@@ -40,5 +40,27 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy Dev') {
+            steps {
+                sshagent(['dev-server-ssh']) {
+                    sh '''
+                    ssh -o StrictHostKeyChecking=no ubuntu@52.74.233.29 << 'EOF'
+
+                        docker pull teo-harbor.legiontech.dev/myproject/myapp:latest
+
+                        docker stop myapp || true
+                        docker rm myapp || true
+
+                        docker run -d \
+                        --name myapp \
+                        -p 9001:3000 \
+                        teo-harbor.legiontech.dev/myproject/myapp:latest
+
+                    EOF
+                    '''
+                }
+            }
+        }
     }
 }
