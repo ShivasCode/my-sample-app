@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  myapp:
+    image: teo-harbor.legiontech.dev/myproject/myapp:latest
+    container_name: myapp
+    restart: always
+
+    ports:
+      - "9001:3000"
+
+    environment:
+      - NODE_ENV=production

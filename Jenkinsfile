@@ -4,6 +4,7 @@ pipeline {
     environment {
         REGISTRY = "teo-harbor.legiontech.dev"
         IMAGE = "myproject/myapp"
+        TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -28,7 +29,7 @@ pipeline {
                 )]) {
                     sh '''
                     echo $HPASS | docker login $REGISTRY -u $HUSER --password-stdin
-                    docker push $REGISTRY/$IMAGE:latest
+                    docker push $REGISTRY/$IMAGE:$TAG
                     '''
                 }
             }
