@@ -4,10 +4,16 @@ pipeline {
     environment {
         REGISTRY = "teo-harbor.legiontech.dev"
         IMAGE = "myproject/myapp"
-        TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
+        stage('Set Tag') {
+            steps {
+                script {
+                    env.TAG = "${env.BUILD_NUMBER}"
+                }
+            }
+        }
         stage('Checkout') {
             steps {
                 git branch: 'dev', url: 'https://github.com/ShivasCode/my-sample-app.git'
