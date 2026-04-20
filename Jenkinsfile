@@ -4,16 +4,19 @@ pipeline {
     environment {
         REGISTRY = "teo-harbor.legiontech.dev"
         IMAGE = "myproject/myapp"
+        DEV_SERVER_IP = "52.74.233.29"
     }
 
     stages {
+
         stage('Set Tag') {
             steps {
                 script {
-                    env.TAG = "${env.BUILD_NUMBER}"
+                    env.TAG = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
                 }
             }
         }
+
         stage('Checkout') {
             steps {
                 git branch: 'dev', url: 'https://github.com/ShivasCode/my-sample-app.git'
@@ -22,6 +25,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                sh 'echo "Building $REGISTRY/$IMAGE:$TAG"'
                 sh 'docker build -t $REGISTRY/$IMAGE:$TAG .'
             }
         }
@@ -35,7 +39,12 @@ pipeline {
                 )]) {
                     sh '''
                     echo $HPASS | docker login $REGISTRY -u $HUSER --password-stdin
+
                     docker push $REGISTRY/$IMAGE:$TAG
+
+                    # optional: also tag latest for convenience
+                    docker tag $REGISTRY/$IMAGE:$TAG $REGISTRY/$IMAGE:latest
+                    docker push $REGISTRY/$IMAGE:latest
                     '''
                 }
             }
@@ -44,21 +53,29 @@ pipeline {
         stage('Deploy Dev') {
             steps {
                 sshagent(['dev-server-ssh']) {
-                    sh '''
-                    ssh -o StrictHostKeyChecking=no ubuntu@52.74.233.29 << 'EOF'
+                    withCredentials([usernamePassword(
+                        credentialsId: 'harbor-creds',
+                        usernameVariable: 'HUSER',
+                        passwordVariable: 'HPASS'
+                    )]) {
+                        sh '''
+                        ssh -o StrictHostKeyChecking=no ubuntu@$DEV_SERVER_IP << EOF
 
-                        docker pull teo-harbor.legiontech.dev/myproject/myapp:latest
+                            echo $HPASS | docker login teo-harbor.legiontech.dev -u $HUSER --password-stdin
 
-                        docker stop myapp || true
-                        docker rm myapp || true
+                            docker pull teo-harbor.legiontech.dev/myproject/myapp:$TAG
 
-                        docker run -d \
-                        --name myapp \
-                        -p 9001:3000 \
-                        teo-harbor.legiontech.dev/myproject/myapp:latest
+                            docker stop myapp || true
+                            docker rm myapp || true
 
-                    EOF
-                    '''
+                            docker run -d \
+                              --name myapp \
+                              -p 9001:3000 \
+                              teo-harbor.legiontech.dev/myproject/myapp:$TAG
+
+                        EOF
+                        '''
+                    }
                 }
             }
         }
