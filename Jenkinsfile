@@ -9,13 +9,13 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ShivasCode/my-sample-app.git'
+                git branch: 'dev', url: 'https://github.com/ShivasCode/my-sample-app.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $REGISTRY/$IMAGE:latest .'
+                sh 'docker build -t $REGISTRY/$IMAGE:$TAG .'
             }
         }
 
