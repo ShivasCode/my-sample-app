@@ -18,7 +18,7 @@ spec:
         - name: sample-app
           # CI replaces c45987c with the real git commit hash on every push
           # e.g. docker.legiontechinc.com/myproject/sample-app:a1b2c3d
-          image: teo-harbor.legiontech.dev/myproject/myapp:36
+          image: teo-harbor.legiontech.dev/myproject/myapp:37
           ports:
             - containerPort: 3000
           resources:
