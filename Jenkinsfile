@@ -58,17 +58,26 @@ pipeline {
                         usernameVariable: 'HUSER',
                         passwordVariable: 'HPASS'
                     )]) {
-                        sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@${DEV_SERVER_IP} \\
-                        'echo ${HPASS} | docker login ${REGISTRY} -u ${HUSER} --password-stdin && \\
-                        docker pull ${REGISTRY}/${IMAGE}:${TAG} && \\
-                        docker stop myapp || true && \\
-                        docker rm myapp || true && \\
-                        docker run -d --name myapp -p 9001:3000 ${REGISTRY}/${IMAGE}:${TAG}'
-                        """
+                        sh '''
+                        ssh -o StrictHostKeyChecking=no ubuntu@$DEV_SERVER_IP << EOF
+
+                        echo "$HPASS" | docker login teo-harbor.legiontech.dev -u "$HUSER" --password-stdin
+
+                        docker pull teo-harbor.legiontech.dev/myproject/myapp:$TAG
+
+                        docker stop myapp || true
+                        docker rm -f myapp || true
+
+                        docker run -d \
+                        --name myapp \
+                        -p 9001:3000 \
+                        teo-harbor.legiontech.dev/myproject/myapp:$TAG
+
+                        EOF
+                        '''
                     }
                 }
             }
-        }
+}
     }
 }
