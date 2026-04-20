@@ -1,68 +1,68 @@
-name: CI — Build and push to Harbor
+# name: CI — Build and push to Harbor
 
-on:
-  push:
-    branches: ["main"]
+# on:
+#   push:
+#     branches: ["main"]
 
-env:
-  HARBOR_REGISTRY: docker.legiontechinc.com
-  HARBOR_PROJECT: sample-app
+# env:
+#   HARBOR_REGISTRY: docker.legiontechinc.com
+#   HARBOR_PROJECT: sample-app
 
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    environment: sample-app
-    permissions:
-      contents: write # needed to commit the updated deployment.yaml back
+# jobs:
+#   build-and-push:
+#     runs-on: ubuntu-latest
+#     environment: sample-app
+#     permissions:
+#       contents: write # needed to commit the updated deployment.yaml back
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           persist-credentials: true
+#           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Get short git SHA — used as the image tag
-      - name: Set short SHA
-        run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+#       # Get short git SHA — used as the image tag
+#       - name: Set short SHA
+#         run: echo "GIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      # Log in to your Harbor registry
-      - name: Login to Harbor
-        run: |
-          echo "${{ secrets.HARBOR_PASSWORD }}" | \
-            docker login $HARBOR_REGISTRY \
-            -u "${{ secrets.HARBOR_USERNAME }}" \
-            --password-stdin
+#       # Log in to your Harbor registry
+#       - name: Login to Harbor
+#         run: |
+#           echo "${{ secrets.HARBOR_PASSWORD }}" | \
+#             docker login $HARBOR_REGISTRY \
+#             -u "${{ secrets.HARBOR_USERNAME }}" \
+#             --password-stdin
 
-      # Build the Docker image tagged with the git SHA
-      - name: Build image
-        run: |
-          docker build -t $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA .
+#       # Build the Docker image tagged with the git SHA
+#       - name: Build image
+#         run: |
+#           docker build -t $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA .
 
-      # Push the image to Harbor
-      - name: Push image
-        run: |
-          docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA
+#       # Push the image to Harbor
+#       - name: Push image
+#         run: |
+#           docker push $HARBOR_REGISTRY/$HARBOR_PROJECT/sample-app:$GIT_SHA
 
-      # Replace {{GIT_SHA}} placeholder in deployment.yaml with the real tag
-      # This is what ArgoCD will detect as a change
-      - name: Update image tag in deployment.yaml
-        run: |
-          sed -i "s|{{GIT_SHA}}|$GIT_SHA|g" k8s/deployment.yaml
+#       # Replace {{GIT_SHA}} placeholder in deployment.yaml with the real tag
+#       # This is what ArgoCD will detect as a change
+#       - name: Update image tag in deployment.yaml
+#         run: |
+#           sed -i "s|{{GIT_SHA}}|$GIT_SHA|g" k8s/deployment.yaml
 
-      # Commit the updated deployment.yaml back to the repo
-      # ArgoCD watches this repo — this commit triggers the deployment
-      - name: Commit updated manifest
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "ci: update image tag to ${{ env.GIT_SHA }}"
-          file_pattern: k8s/deployment.yaml
-          commit_user_name: "github-actions[bot]"
-          commit_user_email: "github-actions[bot]@users.noreply.github.com"
+#       # Commit the updated deployment.yaml back to the repo
+#       # ArgoCD watches this repo — this commit triggers the deployment
+#       - name: Commit updated manifest
+#         uses: stefanzweifel/git-auto-commit-action@v5
+#         with:
+#           commit_message: "ci: update image tag to ${{ env.GIT_SHA }}"
+#           file_pattern: k8s/deployment.yaml
+#           commit_user_name: "github-actions[bot]"
+#           commit_user_email: "github-actions[bot]@users.noreply.github.com"
 
-  # ─────────────────────────────────────────────────────────────
-  # NO deploy job needed here.
-  # ArgoCD is watching this repo. When the commit above lands,
-  # ArgoCD detects that k8s/deployment.yaml changed, syncs the
-  # new manifest to EKS, and does a rolling update automatically.
-  # ─────────────────────────────────────────────────────────────
+#   # ─────────────────────────────────────────────────────────────
+#   # NO deploy job needed here.
+#   # ArgoCD is watching this repo. When the commit above lands,
+#   # ArgoCD detects that k8s/deployment.yaml changed, syncs the
+#   # new manifest to EKS, and does a rolling update automatically.
+#   # ─────────────────────────────────────────────────────────────
