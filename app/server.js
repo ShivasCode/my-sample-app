@@ -6,4 +6,4 @@ app.get("/", (req, res) => {
   res.send("Hello from Harbor → ArgoCD → EKS!");
 });
 
-app.listen(3000, () => console.log("Server running on 3000"));
+app.listen(3000, () => console.log("Fix Server running on 3000"));
